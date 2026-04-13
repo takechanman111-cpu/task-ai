@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI自動化 タスクチェックリスト</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Koto Mincho','YuGothic','Yu Gothic',sans-serif;background:#f5f5f0;color:#1a1a1a;min-height:100vh}
+.app{padding:2rem 1.5rem;max-width:900px;margin:0 auto}
+h1{font-size:20px;font-weight:600;color:#1a1a1a;flex:1}
+.topbar{display:flex;align-items:center;gap:12px;margin-bottom:1.5rem;flex-wrap:wrap}
+.progress-wrap{display:flex;align-items:center;gap:10px;margin-bottom:1.5rem}
+.progress-bar{flex:1;height:6px;background:#e0e0d8;border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;background:#1D9E75;border-radius:3px;transition:width 0.4s}
+.progress-label{font-size:13px;color:#666;white-space:nowrap}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1.25rem;align-items:center}
+.controls select,.controls input{font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid #d0d0c8;background:#fff;color:#1a1a1a;height:34px}
+.controls input{width:200px}
+.btn{font-size:13px;padding:6px 14px;border-radius:8px;border:1px solid #d0d0c8;background:#fff;color:#1a1a1a;cursor:pointer;height:34px;white-space:nowrap}
+.btn:hover{background:#f0f0eb}
+.btn.primary{background:#1D9E75;color:#fff;border-color:#1D9E75}
+.btn.primary:hover{background:#0F6E56}
+.cats{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1.25rem}
+.cat-pill{font-size:12px;padding:4px 12px;border-radius:20px;border:1px solid #d0d0c8;cursor:pointer;color:#666;background:#fff;transition:all 0.15s}
+.cat-pill.active{background:#1D9E75;color:#fff;border-color:#1D9E75}
+.task-list{display:flex;flex-direction:column;gap:8px}
+.task-card{background:#fff;border:1px solid #e0e0d8;border-radius:12px;padding:12px 16px;transition:all 0.15s}
+.task-card:hover{border-color:#c0c0b8}
+.task-card.done{opacity:0.55}
+.task-top{display:flex;align-items:flex-start;gap:10px}
+.check-wrap{padding-top:2px;flex-shrink:0}
+.check-wrap input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:#1D9E75}
+.task-body{flex:1;min-width:0}
+.task-title{font-size:14px;font-weight:500;color:#1a1a1a;margin-bottom:4px;word-break:break-word}
+.task-card.done .task-title{text-decoration:line-through;color:#999}
+.meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.badge{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:500}
+.badge-cat{background:#E1F5EE;color:#0F6E56}
+.badge-auto-yes{background:#EAF3DE;color:#3B6D11}
+.badge-auto-no{background:#FCEBEB;color:#A32D2D}
+.badge-auto-part{background:#FAEEDA;color:#854F0B}
+.badge-auto-unknown{background:#f0f0eb;color:#666}
+.badge-tool{background:#EEEDFE;color:#3C3489}
+.task-actions{display:flex;gap:4px;flex-shrink:0;opacity:0;transition:opacity 0.15s}
+.task-card:hover .task-actions{opacity:1}
+.icon-btn{background:none;border:none;cursor:pointer;padding:4px 6px;border-radius:6px;color:#999;font-size:14px}
+.icon-btn:hover{background:#f0f0eb;color:#1a1a1a}
+.memo{font-size:12px;color:#888;margin-top:4px;padding-top:4px;border-top:1px solid #f0f0eb}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:10px;margin-bottom:1.5rem}
+.stat{background:#fff;border:1px solid #e0e0d8;border-radius:8px;padding:10px 14px;text-align:center}
+.stat-num{font-size:22px;font-weight:600;color:#1a1a1a}
+.stat-lbl{font-size:11px;color:#888;margin-top:2px}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:100;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:#fff;border-radius:14px;border:1px solid #e0e0d8;padding:1.5rem;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;margin:1rem}
+.modal h2{font-size:16px;font-weight:600;margin-bottom:1rem}
+.field{margin-bottom:14px}
+.field label{font-size:12px;color:#888;display:block;margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;padding:8px 10px;border:1px solid #d0d0c8;border-radius:8px;font-size:13px;background:#fff;color:#1a1a1a;font-family:inherit}
+.field textarea{resize:vertical;min-height:60px}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:1rem}
+.empty{text-align:center;padding:3rem 1rem;color:#999;font-size:14px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <h1>AI自動化 タスクチェックリスト</h1>
+    <button class="btn primary" onclick="openModal()">+ タスクを追加</button>
+  </div>
+  <div class="stats" id="stats"></div>
+  <div class="progress-wrap">
+    <div class="progress-bar"><div class="progress-fill" id="prog-fill"></div></div>
+    <div class="progress-label" id="prog-label"></div>
+  </div>
+  <div class="controls">
+    <input type="text" id="search" placeholder="タスクを検索..." oninput="render()">
+    <select id="filter-auto" onchange="render()">
+      <option value="">自動化：すべて</option>
+      <option value="yes">自動化できる</option>
+      <option value="part">一部可能</option>
+      <option value="no">難しい</option>
+      <option value="unknown">未確認</option>
+    </select>
+    <select id="filter-done" onchange="render()">
+      <option value="">進捗：すべて</option>
+      <option value="false">未完了</option>
+      <option value="true">完了済み</option>
+    </select>
+    <button class="btn" onclick="clearDone()">完了済みを削除</button>
+  </div>
+  <div class="cats" id="cats"></div>
+  <div class="task-list" id="task-list"></div>
+</div>
+
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <h2 id="modal-title">タスクを追加</h2>
+    <div class="field"><label>タスク名 *</label><input type="text" id="f-title" placeholder="例：メルマガ本文の下書き"></div>
+    <div class="field"><label>カテゴリ</label>
+      <select id="f-cat">
+        <option value="文書・資料作成">文書・資料作成</option>
+        <option value="データ入力・集計">データ入力・集計</option>
+        <option value="メール・連絡対応">メール・連絡対応</option>
+        <option value="SNS・コンテンツ投稿">SNS・コンテンツ投稿</option>
+        <option value="動画・音声編集">動画・音声編集</option>
+        <option value="その他">その他</option>
+      </select>
+    </div>
+    <div class="field"><label>AI自動化の可否</label>
+      <select id="f-auto">
+        <option value="unknown">未確認</option>
+        <option value="yes">自動化できる</option>
+        <option value="part">一部可能</option>
+        <option value="no">難しい</option>
+      </select>
+    </div>
+    <div class="field"><label>使用AIツール（複数可、カンマ区切り）</label><input type="text" id="f-tools" placeholder="例：ChatGPT, Claude, Gemini"></div>
+    <div class="field"><label>メモ・備考</label><textarea id="f-memo" placeholder="自動化の方法や手順など"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">キャンセル</button>
+      <button class="btn primary" onclick="saveTask()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'ai_checklist_tasks';
+const TOOLS_MAP = {
+  '文書・資料作成':['Claude','ChatGPT','Gemini'],
+  'データ入力・集計':['Claude','ChatGPT','Make'],
+  'メール・連絡対応':['ChatGPT','Claude','Gemini'],
+  'SNS・コンテンツ投稿':['ChatGPT','Claude','Buffer'],
+  '動画・音声編集':['Adobe Podcast','Descript','Whisper'],
+  'その他':[]
+};
+
+const DEFAULT_TASKS = [
+  {id:1,title:'メルマガ本文の下書き',cat:'文書・資料作成',auto:'yes',tools:['Claude','ChatGPT'],done:false,memo:'プロンプトを定型化して毎回Claude APIで生成'},
+  {id:2,title:'SNSキャプション作成',cat:'SNS・コンテンツ投稿',auto:'yes',tools:['ChatGPT','Claude'],done:false,memo:''},
+  {id:3,title:'問い合わせメールへの返信',cat:'メール・連絡対応',auto:'part',tools:['Gemini','Claude'],done:false,memo:'テンプレ生成はAI可、最終確認は手動'},
+  {id:4,title:'月次レポートのグラフ集計',cat:'データ入力・集計',auto:'yes',tools:['Claude','Make'],done:false,memo:''},
+  {id:5,title:'動画の文字起こし',cat:'動画・音声編集',auto:'yes',tools:['Adobe Podcast','Whisper'],done:true,memo:'Adobe PodcastのEnhance Speechで完結'},
+  {id:6,title:'提案書のたたき台作成',cat:'文書・資料作成',auto:'part',tools:['Claude','ChatGPT'],done:false,memo:''},
+  {id:7,title:'SNSスケジュール投稿',cat:'SNS・コンテンツ投稿',auto:'yes',tools:['Buffer','Make'],done:false,memo:''},
+  {id:8,title:'議事録の作成',cat:'文書・資料作成',auto:'yes',tools:['Gemini','Claude'],done:false,memo:''},
+  {id:9,title:'動画BGMのノイズ除去',cat:'動画・音声編集',auto:'part',tools:['Adobe Podcast'],done:false,memo:''},
+  {id:10,title:'顧客データの名寄せ',cat:'データ入力・集計',auto:'no',tools:[],done:false,memo:'個人情報含むため慎重に判断要'},
+];
+
+function loadTasks() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : DEFAULT_TASKS;
+  } catch(e) { return DEFAULT_TASKS; }
+}
+
+function saveTasks() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); } catch(e) {}
+}
+
+let tasks = loadTasks();
+let nextId = tasks.length ? Math.max(...tasks.map(t=>t.id)) + 1 : 11;
+let editId = null;
+let activeCat = 'すべて';
+
+const AUTO_LABEL={yes:'自動化できる',part:'一部可能',no:'難しい',unknown:'未確認'};
+const AUTO_CLASS={yes:'badge-auto-yes',part:'badge-auto-part',no:'badge-auto-no',unknown:'badge-auto-unknown'};
+
+function getCats(){
+  const s=new Set(tasks.map(t=>t.cat));
+  return ['すべて',...s];
+}
+
+function filtered(){
+  const q=document.getElementById('search').value.toLowerCase();
+  const fa=document.getElementById('filter-auto').value;
+  const fd=document.getElementById('filter-done').value;
+  return tasks.filter(t=>{
+    if(activeCat!=='すべて'&&t.cat!==activeCat)return false;
+    if(q&&!t.title.toLowerCase().includes(q)&&!t.cat.toLowerCase().includes(q))return false;
+    if(fa&&t.auto!==fa)return false;
+    if(fd!==''&&String(t.done)!==fd)return false;
+    return true;
+  });
+}
+
+function renderStats(){
+  const total=tasks.length;
+  const done=tasks.filter(t=>t.done).length;
+  const autoYes=tasks.filter(t=>t.auto==='yes').length;
+  const autoPart=tasks.filter(t=>t.auto==='part').length;
+  document.getElementById('stats').innerHTML=`
+    <div class="stat"><div class="stat-num">${total}</div><div class="stat-lbl">総タスク数</div></div>
+    <div class="stat"><div class="stat-num">${done}</div><div class="stat-lbl">完了済み</div></div>
+    <div class="stat"><div class="stat-num">${autoYes}</div><div class="stat-lbl">自動化できる</div></div>
+    <div class="stat"><div class="stat-num">${autoPart}</div><div class="stat-lbl">一部自動化可</div></div>
+    <div class="stat"><div class="stat-num">${total-done}</div><div class="stat-lbl">未完了</div></div>
+  `;
+  const pct=total?Math.round(done/total*100):0;
+  document.getElementById('prog-fill').style.width=pct+'%';
+  document.getElementById('prog-label').textContent=`完了 ${done} / ${total}（${pct}%）`;
+}
+
+function renderCats(){
+  const cats=getCats();
+  document.getElementById('cats').innerHTML=cats.map(c=>`<span class="cat-pill${c===activeCat?' active':''}" onclick="setCat('${c}')">${c}</span>`).join('');
+}
+
+function render(){
+  renderStats();
+  renderCats();
+  const list=filtered();
+  const el=document.getElementById('task-list');
+  if(!list.length){el.innerHTML='<div class="empty">該当するタスクがありません</div>';return;}
+  el.innerHTML=list.map(t=>`
+    <div class="task-card${t.done?' done':''}">
+      <div class="task-top">
+        <div class="check-wrap"><input type="checkbox" ${t.done?'checked':''} onchange="toggleDone(${t.id})"></div>
+        <div class="task-body">
+          <div class="task-title">${esc(t.title)}</div>
+          <div class="meta">
+            <span class="badge badge-cat">${esc(t.cat)}</span>
+            <span class="badge ${AUTO_CLASS[t.auto]}">${AUTO_LABEL[t.auto]}</span>
+            ${t.tools.map(tool=>`<span class="badge badge-tool">${esc(tool)}</span>`).join('')}
+          </div>
+          ${t.memo?`<div class="memo">${esc(t.memo)}</div>`:''}
+        </div>
+        <div class="task-actions">
+          <button class="icon-btn" title="編集" onclick="editTask(${t.id})">✎</button>
+          <button class="icon-btn" title="削除" onclick="deleteTask(${t.id})" style="color:#D85A30">✕</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function setCat(c){activeCat=c;render();}
+
+function toggleDone(id){
+  const t=tasks.find(t=>t.id===id);
+  if(t){t.done=!t.done;saveTasks();}
+  render();
+}
+
+function deleteTask(id){
+  if(confirm('このタスクを削除しますか？')){
+    tasks=tasks.filter(t=>t.id!==id);
+    saveTasks();
+    render();
+  }
+}
+
+function clearDone(){
+  if(confirm('完了済みのタスクをすべて削除しますか？')){
+    tasks=tasks.filter(t=>!t.done);
+    saveTasks();
+    render();
+  }
+}
+
+function openModal(id){
+  editId=id||null;
+  document.getElementById('modal-title').textContent=id?'タスクを編集':'タスクを追加';
+  if(id){
+    const t=tasks.find(t=>t.id===id);
+    document.getElementById('f-title').value=t.title;
+    document.getElementById('f-cat').value=t.cat;
+    document.getElementById('f-auto').value=t.auto;
+    document.getElementById('f-tools').value=t.tools.join(', ');
+    document.getElementById('f-memo').value=t.memo;
+  } else {
+    document.getElementById('f-title').value='';
+    document.getElementById('f-cat').value='文書・資料作成';
+    document.getElementById('f-auto').value='unknown';
+    document.getElementById('f-tools').value='';
+    document.getElementById('f-memo').value='';
+  }
+  document.getElementById('modal-bg').classList.add('open');
+}
+
+function editTask(id){openModal(id);}
+
+function closeModal(){
+  document.getElementById('modal-bg').classList.remove('open');
+  editId=null;
+}
+
+function saveTask(){
+  const title=document.getElementById('f-title').value.trim();
+  if(!title){alert('タスク名を入力してください');return;}
+  const cat=document.getElementById('f-cat').value;
+  const auto=document.getElementById('f-auto').value;
+  const toolsRaw=document.getElementById('f-tools').value;
+  const tools=toolsRaw?toolsRaw.split(',').map(s=>s.trim()).filter(Boolean):TOOLS_MAP[cat]||[];
+  const memo=document.getElementById('f-memo').value.trim();
+  if(editId){
+    const t=tasks.find(t=>t.id===editId);
+    Object.assign(t,{title,cat,auto,tools,memo});
+  } else {
+    tasks.push({id:nextId++,title,cat,auto,tools,done:false,memo});
+  }
+  saveTasks();
+  closeModal();
+  render();
+}
+
+document.getElementById('modal-bg').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
+render();
+</script>
+</body>
+</html>
